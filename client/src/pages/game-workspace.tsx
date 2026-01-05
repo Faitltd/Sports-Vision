@@ -101,6 +101,37 @@ function RecommendationPanel({ game, slateId }: { game: Game; slateId: string })
     ? (game.confidenceLow + game.confidenceHigh) / 2 
     : 0;
 
+  const researchMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/games/${game.id}/research`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/games", game.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/games", game.id, "evidence"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/games", game.id, "why-factors"] });
+      toast({ title: "Research complete", description: "Analysis has been updated with new findings." });
+    },
+    onError: () => {
+      toast({ title: "Research failed", variant: "destructive" });
+    },
+  });
+
+  const analyzeMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/games/${game.id}/analyze`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/games", game.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/games", game.id, "why-factors"] });
+      toast({ title: "Analysis complete" });
+    },
+    onError: () => {
+      toast({ title: "Analysis failed", variant: "destructive" });
+    },
+  });
+
   return (
     <div className="flex flex-col gap-4 p-4 border-r bg-muted/30 w-80 shrink-0 overflow-y-auto">
       <div className="flex items-center gap-2">
@@ -155,13 +186,13 @@ function RecommendationPanel({ game, slateId }: { game: Game; slateId: string })
                   <div className="flex items-center justify-between text-xs mb-1">
                     <span className="text-muted-foreground">Confidence</span>
                     <span className="font-mono" data-testid="text-confidence">
-                      {Math.round(game.confidenceLow * 100)}-{Math.round(game.confidenceHigh * 100)}%
+                      {Math.round(game.confidenceLow)}-{Math.round(game.confidenceHigh)}%
                     </span>
                   </div>
                   <div className="h-2 bg-muted rounded-full overflow-hidden">
                     <div 
                       className="h-full bg-primary rounded-full transition-all"
-                      style={{ width: `${confidenceAvg * 100}%` }}
+                      style={{ width: `${confidenceAvg}%` }}
                     />
                   </div>
                 </div>
@@ -174,9 +205,18 @@ function RecommendationPanel({ game, slateId }: { game: Game; slateId: string })
               )}
             </div>
           ) : (
-            <div className="text-center py-6 text-muted-foreground">
+            <div className="text-center py-4 text-muted-foreground">
               <p>No recommendation yet</p>
-              <p className="text-xs mt-1">Run research to generate picks</p>
+              <p className="text-xs mt-1 mb-3">Run research to generate picks</p>
+              <Button 
+                onClick={() => researchMutation.mutate()}
+                disabled={researchMutation.isPending}
+                className="w-full"
+                data-testid="button-run-research"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${researchMutation.isPending ? "animate-spin" : ""}`} />
+                {researchMutation.isPending ? "Researching..." : "Run Research"}
+              </Button>
             </div>
           )}
         </CardContent>
@@ -202,6 +242,29 @@ function RecommendationPanel({ game, slateId }: { game: Game; slateId: string })
             </>
           )}
         </Button>
+
+        <div className="flex gap-2">
+          <Button 
+            variant="outline"
+            onClick={() => researchMutation.mutate()}
+            disabled={researchMutation.isPending || analyzeMutation.isPending}
+            className="flex-1"
+            data-testid="button-refresh-research"
+          >
+            <RefreshCw className={`h-4 w-4 mr-1 ${researchMutation.isPending ? "animate-spin" : ""}`} />
+            {researchMutation.isPending ? "..." : "Research"}
+          </Button>
+          <Button 
+            variant="outline"
+            onClick={() => analyzeMutation.mutate()}
+            disabled={analyzeMutation.isPending || researchMutation.isPending}
+            className="flex-1"
+            data-testid="button-reanalyze"
+          >
+            <RefreshCw className={`h-4 w-4 mr-1 ${analyzeMutation.isPending ? "animate-spin" : ""}`} />
+            {analyzeMutation.isPending ? "..." : "Re-Analyze"}
+          </Button>
+        </div>
 
         <Dialog open={overrideOpen} onOpenChange={setOverrideOpen}>
           <DialogTrigger asChild>

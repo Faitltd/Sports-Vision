@@ -8,6 +8,7 @@ import {
 import { z } from "zod";
 import { extractGamesFromImage, extractGamesFromText } from "./services/ocr";
 import { researchGame, researchSpecificTopic } from "./services/perplexity";
+import { analyzeAndUpdateGame, analyzeSlate } from "./services/analysis";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -479,17 +480,44 @@ export async function registerRoutes(
         await storage.createEvidenceBatch(evidenceItems);
       }
 
+      const analyzedGame = await analyzeAndUpdateGame(game.id);
       await storage.updateGame(game.id, { status: "ready" });
 
       res.json({ 
         success: true, 
         findingsCount: result.findings.length,
         findings: result.findings,
-        citations: result.citations 
+        citations: result.citations,
+        game: analyzedGame 
       });
     } catch (error) {
       console.error("Research error:", error);
       res.status(500).json({ error: "Failed to research game" });
+    }
+  });
+
+  app.post("/api/games/:gameId/analyze", async (req: Request, res: Response) => {
+    try {
+      const game = await storage.getGame(req.params.gameId);
+      if (!game) {
+        return res.status(404).json({ error: "Game not found" });
+      }
+
+      const analyzedGame = await analyzeAndUpdateGame(game.id);
+      if (!analyzedGame) {
+        return res.status(500).json({ error: "Analysis failed" });
+      }
+
+      const whyFactors = await storage.getWhyFactors(game.id);
+      
+      res.json({ 
+        success: true, 
+        game: analyzedGame,
+        whyFactors 
+      });
+    } catch (error) {
+      console.error("Analysis error:", error);
+      res.status(500).json({ error: "Failed to analyze game" });
     }
   });
 
@@ -547,8 +575,16 @@ export async function registerRoutes(
             await storage.createEvidenceBatch(evidenceItems);
           }
 
+          const analyzedGame = await analyzeAndUpdateGame(game.id);
           await storage.updateGame(game.id, { status: "ready" });
-          results.push({ gameId: game.id, success: true, findingsCount: research.findings.length });
+          results.push({ 
+            gameId: game.id, 
+            success: true, 
+            findingsCount: research.findings.length,
+            pick: analyzedGame?.pick,
+            confidenceLow: analyzedGame?.confidenceLow,
+            confidenceHigh: analyzedGame?.confidenceHigh
+          });
         } catch (gameError) {
           console.error(`Research error for game ${game.id}:`, gameError);
           results.push({ gameId: game.id, success: false, error: "Research failed" });
