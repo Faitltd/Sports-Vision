@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Plus, MoreHorizontal, Calendar, FileText, Upload } from "lucide-react";
+import { Plus, MoreHorizontal, Calendar, FileText, Upload, Archive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,12 +30,48 @@ import type { Slate } from "@shared/schema";
 import { format } from "date-fns";
 
 function SlateCard({ slate }: { slate: Slate }) {
+  const { toast } = useToast();
+  
+  const archiveMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("PATCH", `/api/slates/${slate.id}`, { 
+        status: "archived" 
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/slates"] });
+      toast({
+        title: "Slate archived",
+        description: `"${slate.name}" has been archived.`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to archive slate. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleArchive = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    archiveMutation.mutate();
+  };
+
   const statusColors: Record<string, string> = {
     draft: "bg-muted text-muted-foreground",
     enriching: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
     ready: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
     exported: "bg-primary/10 text-primary",
+    archived: "bg-muted text-muted-foreground opacity-60",
   };
+
+  if (slate.status === "archived") {
+    return null;
+  }
 
   return (
     <Link href={`/slates/${slate.id}`}>
@@ -71,8 +107,13 @@ function SlateCard({ slate }: { slate: Slate }) {
               <DropdownMenuItem data-testid={`menu-duplicate-${slate.id}`}>
                 Duplicate
               </DropdownMenuItem>
-              <DropdownMenuItem data-testid={`menu-archive-${slate.id}`}>
-                Archive
+              <DropdownMenuItem 
+                onClick={handleArchive}
+                disabled={archiveMutation.isPending}
+                data-testid={`menu-archive-${slate.id}`}
+              >
+                <Archive className="h-4 w-4 mr-2" />
+                {archiveMutation.isPending ? "Archiving..." : "Archive"}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
