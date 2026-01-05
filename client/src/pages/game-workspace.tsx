@@ -374,6 +374,286 @@ function RecommendationPanel({ game, slateId }: { game: Game; slateId: string })
   );
 }
 
+function MobileGameHeader({ game, slateId }: { game: Game; slateId: string }) {
+  const { toast } = useToast();
+  const [showActions, setShowActions] = useState(false);
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const [overridePick, setOverridePick] = useState("");
+  const [overrideLine, setOverrideLine] = useState("");
+  const [overrideReason, setOverrideReason] = useState("");
+  const [notes, setNotes] = useState(game.notes || "");
+
+  const lockMutation = useMutation({
+    mutationFn: async () => {
+      const endpoint = game.isLocked 
+        ? `/api/games/${game.id}/unlock` 
+        : `/api/games/${game.id}/lock`;
+      const response = await apiRequest("POST", endpoint);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/games", game.id] });
+      toast({ title: game.isLocked ? "Game unlocked" : "Game locked" });
+    },
+  });
+
+  const flagMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("PATCH", `/api/games/${game.id}`, { 
+        flaggedForReview: !game.flaggedForReview 
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/games", game.id] });
+    },
+  });
+
+  const researchMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/games/${game.id}/research`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/games", game.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/games", game.id, "evidence"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/games", game.id, "why-factors"] });
+      toast({ title: "Research complete" });
+    },
+  });
+
+  const analyzeMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/games/${game.id}/analyze`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/games", game.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/games", game.id, "why-factors"] });
+      toast({ title: "Analysis complete" });
+    },
+  });
+
+  const overrideMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/games/${game.id}/override`, {
+        pick: overridePick,
+        pickLine: parseFloat(overrideLine) || null,
+        overrideReason,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/games", game.id] });
+      setOverrideOpen(false);
+      toast({ title: "Pick overridden" });
+    },
+  });
+
+  const notesMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("PATCH", `/api/games/${game.id}`, { notes });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/games", game.id] });
+      toast({ title: "Notes saved" });
+    },
+  });
+
+  return (
+    <div className="lg:hidden border-b bg-muted/30">
+      <div className="p-4 space-y-3">
+        <div className="flex items-center gap-3">
+          <Link href={`/slates/${slateId}`}>
+            <Button variant="ghost" size="icon" data-testid="button-back-mobile">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div className="flex-1 min-w-0">
+            <h2 className="font-semibold truncate">{game.awayTeam} @ {game.homeTeam}</h2>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Badge variant={game.status === "ready" ? "default" : "secondary"} className="capitalize text-xs">
+                {game.status}
+              </Badge>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowActions(!showActions)}
+            data-testid="button-toggle-actions"
+          >
+            <ChevronDown className={`h-4 w-4 transition-transform ${showActions ? "rotate-180" : ""}`} />
+          </Button>
+        </div>
+        
+        {game.pick && (
+          <div className="flex items-center gap-3 bg-background rounded-md p-3">
+            <div className="text-center min-w-fit">
+              <p className="text-lg font-bold font-mono">{game.pick}</p>
+              {game.pickLine && (
+                <p className="text-sm font-mono text-muted-foreground">
+                  {game.pickLine > 0 ? "+" : ""}{game.pickLine}
+                </p>
+              )}
+            </div>
+            {game.confidenceLow && game.confidenceHigh && (
+              <div className="flex-1">
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-muted-foreground">Confidence</span>
+                  <span className="font-mono">
+                    {Math.round(game.confidenceLow)}-{Math.round(game.confidenceHigh)}%
+                  </span>
+                </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-primary rounded-full"
+                    style={{ width: `${(game.confidenceLow + game.confidenceHigh) / 2}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant={game.isLocked ? "default" : "outline"}
+            size="sm"
+            onClick={() => lockMutation.mutate()}
+            disabled={lockMutation.isPending}
+            data-testid="button-lock-mobile"
+          >
+            {game.isLocked ? <Lock className="h-4 w-4 mr-1" /> : <Unlock className="h-4 w-4 mr-1" />}
+            {game.isLocked ? "Locked" : "Lock"}
+          </Button>
+          <Button
+            variant={game.flaggedForReview ? "destructive" : "ghost"}
+            size="sm"
+            onClick={() => flagMutation.mutate()}
+            disabled={flagMutation.isPending}
+            data-testid="button-flag-mobile"
+          >
+            <Flag className="h-4 w-4 mr-1" />
+            {game.flaggedForReview ? "Flagged" : "Flag"}
+          </Button>
+        </div>
+        
+        {game.overrideReason && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-2">
+            <p className="text-xs font-medium text-amber-600 dark:text-amber-400 mb-1">Override Reason</p>
+            <p className="text-sm">{game.overrideReason}</p>
+          </div>
+        )}
+      </div>
+
+      {showActions && (
+        <div className="border-t p-4 space-y-3 bg-background">
+          <div className="flex flex-wrap gap-2">
+            <Button 
+              variant="outline"
+              size="sm"
+              onClick={() => researchMutation.mutate()}
+              disabled={researchMutation.isPending || analyzeMutation.isPending}
+              data-testid="button-research-mobile"
+            >
+              <RefreshCw className={`h-4 w-4 mr-1 ${researchMutation.isPending ? "animate-spin" : ""}`} />
+              Research
+            </Button>
+            <Button 
+              variant="outline"
+              size="sm"
+              onClick={() => analyzeMutation.mutate()}
+              disabled={analyzeMutation.isPending || researchMutation.isPending}
+              data-testid="button-analyze-mobile"
+            >
+              <RefreshCw className={`h-4 w-4 mr-1 ${analyzeMutation.isPending ? "animate-spin" : ""}`} />
+              Re-Analyze
+            </Button>
+            <Dialog open={overrideOpen} onOpenChange={setOverrideOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" data-testid="button-override-mobile">
+                  Override
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Override Recommendation</DialogTitle>
+                  <DialogDescription>
+                    Manually set a pick that overrides the framework recommendation.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="pick-mobile">Pick</Label>
+                    <Input
+                      id="pick-mobile"
+                      value={overridePick}
+                      onChange={(e) => setOverridePick(e.target.value)}
+                      placeholder="Alabama -3.5"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="line-mobile">Line</Label>
+                    <Input
+                      id="line-mobile"
+                      type="number"
+                      step="0.5"
+                      value={overrideLine}
+                      onChange={(e) => setOverrideLine(e.target.value)}
+                      placeholder="-3.5"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="reason-mobile">Reason</Label>
+                    <Textarea
+                      id="reason-mobile"
+                      value={overrideReason}
+                      onChange={(e) => setOverrideReason(e.target.value)}
+                      placeholder="Explain why you're overriding..."
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setOverrideOpen(false)}>Cancel</Button>
+                  <Button 
+                    onClick={() => overrideMutation.mutate()}
+                    disabled={!overridePick || overrideMutation.isPending}
+                  >
+                    Override
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="notes-mobile">Notes</Label>
+            <Textarea
+              id="notes-mobile"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add notes..."
+              className="min-h-[60px]"
+            />
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => notesMutation.mutate()}
+              disabled={notesMutation.isPending || notes === game.notes}
+              data-testid="button-save-notes-mobile"
+            >
+              <MessageSquare className="h-4 w-4 mr-1" />
+              Save Notes
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EvidencePanel({ gameId }: { gameId: string }) {
   const { data: evidence = [], isLoading } = useQuery<Evidence[]>({
     queryKey: ["/api/games", gameId, "evidence"],
@@ -516,9 +796,9 @@ function WhyPanel({ gameId }: { gameId: string }) {
               {factor.description && (
                 <p className="text-sm">{factor.description}</p>
               )}
-              {factor.keyFacts && Array.isArray(factor.keyFacts) && factor.keyFacts.length > 0 && (
+              {factor.keyFacts && Array.isArray(factor.keyFacts) && (factor.keyFacts as unknown as string[]).length > 0 && (
                 <ul className="text-sm space-y-1">
-                  {(factor.keyFacts as string[]).map((fact, i) => (
+                  {(factor.keyFacts as unknown as string[]).map((fact: string, i: number) => (
                     <li key={i} className="flex items-start gap-2">
                       <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
                       <span>{fact}</span>
@@ -526,14 +806,14 @@ function WhyPanel({ gameId }: { gameId: string }) {
                   ))}
                 </ul>
               )}
-              {factor.uncertaintyFlags && Array.isArray(factor.uncertaintyFlags) && (factor.uncertaintyFlags as string[]).length > 0 && (
+              {factor.uncertaintyFlags && Array.isArray(factor.uncertaintyFlags) && (factor.uncertaintyFlags as unknown as string[]).length > 0 && (
                 <div className="bg-amber-500/10 rounded-md p-3">
                   <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 mb-2">
                     <AlertTriangle className="h-4 w-4" />
                     <span className="text-sm font-medium">Uncertainty</span>
                   </div>
                   <ul className="text-sm space-y-1">
-                    {(factor.uncertaintyFlags as string[]).map((flag, i) => (
+                    {(factor.uncertaintyFlags as unknown as string[]).map((flag: string, i: number) => (
                       <li key={i}>{flag}</li>
                     ))}
                   </ul>
@@ -670,35 +950,43 @@ export default function GameWorkspacePage() {
   }
 
   return (
-    <div className="flex h-full">
-      <RecommendationPanel game={game} slateId={slateId!} />
+    <div className="flex flex-col lg:flex-row h-full">
+      <div className="hidden lg:block">
+        <RecommendationPanel game={game} slateId={slateId!} />
+      </div>
       
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="flex items-center justify-between gap-4 mb-6">
-          <h2 className="text-xl font-semibold">Analysis & Evidence</h2>
+      <MobileGameHeader game={game} slateId={slateId!} />
+      
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <h2 className="text-lg sm:text-xl font-semibold">Analysis & Evidence</h2>
           <Button 
             onClick={() => researchMutation.mutate()}
             disabled={researchMutation.isPending}
+            size="sm"
             data-testid="button-run-research"
           >
             {researchMutation.isPending ? (
               <>
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Researching...
+                <span className="hidden sm:inline">Researching...</span>
+                <span className="sm:hidden">...</span>
               </>
             ) : (
               <>
                 <RefreshCw className="h-4 w-4 mr-2" />
-                Run Research
+                <span className="hidden sm:inline">Run Research</span>
+                <span className="sm:hidden">Research</span>
               </>
             )}
           </Button>
         </div>
 
         <Tabs defaultValue="evidence" className="w-full">
-          <TabsList>
-            <TabsTrigger value="evidence" data-testid="tab-evidence">Evidence</TabsTrigger>
-            <TabsTrigger value="why" data-testid="tab-why">Why</TabsTrigger>
+          <TabsList className="w-full sm:w-auto">
+            <TabsTrigger value="evidence" className="flex-1 sm:flex-initial" data-testid="tab-evidence">Evidence</TabsTrigger>
+            <TabsTrigger value="why" className="flex-1 sm:flex-initial" data-testid="tab-why">Why</TabsTrigger>
+            <TabsTrigger value="data" className="flex-1 sm:flex-initial lg:hidden" data-testid="tab-data">Data</TabsTrigger>
           </TabsList>
           <TabsContent value="evidence" className="mt-4">
             <EvidencePanel gameId={gameId!} />
@@ -706,10 +994,13 @@ export default function GameWorkspacePage() {
           <TabsContent value="why" className="mt-4">
             <WhyPanel gameId={gameId!} />
           </TabsContent>
+          <TabsContent value="data" className="mt-4 lg:hidden">
+            <DataSnapshotsPanel gameId={gameId!} />
+          </TabsContent>
         </Tabs>
       </div>
 
-      <div className="w-96 shrink-0 border-l bg-muted/30 p-4 overflow-y-auto">
+      <div className="hidden lg:block w-96 shrink-0 border-l bg-muted/30 p-4 overflow-y-auto">
         <h3 className="font-semibold mb-4">Data Snapshots</h3>
         <DataSnapshotsPanel gameId={gameId!} />
       </div>

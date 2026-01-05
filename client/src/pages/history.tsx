@@ -3,9 +3,9 @@ import { History } from "lucide-react";
 
 export default function HistoryPage() {
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold" data-testid="text-page-title">History</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold" data-testid="text-page-title">History</h1>
         <p className="text-muted-foreground text-sm">
           View past slates and analysis history
         </p>

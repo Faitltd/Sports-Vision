@@ -17,6 +17,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarFooter,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   DropdownMenu,
@@ -53,6 +54,7 @@ const navItems = [
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const { setOpenMobile, isMobile } = useSidebar();
   
   const { data: frameworks = [] } = useQuery<Framework[]>({
     queryKey: ["/api/frameworks"],
@@ -61,6 +63,12 @@ export function AppSidebar() {
   const { data: activeFramework } = useQuery<Framework>({
     queryKey: ["/api/frameworks/active"],
   });
+
+  const handleNavClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
 
   return (
     <Sidebar>
@@ -132,7 +140,7 @@ export function AppSidebar() {
                     isActive={location === item.url}
                     data-testid={`nav-${item.title.toLowerCase()}`}
                   >
-                    <Link href={item.url}>
+                    <Link href={item.url} onClick={handleNavClick}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </Link>

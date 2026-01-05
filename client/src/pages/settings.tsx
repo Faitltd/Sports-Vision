@@ -10,9 +10,9 @@ export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-3xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold" data-testid="text-page-title">Settings</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold" data-testid="text-page-title">Settings</h1>
         <p className="text-muted-foreground text-sm">
           Configure your application preferences
         </p>
