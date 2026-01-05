@@ -4,7 +4,8 @@ import {
   Settings, 
   History, 
   Layers,
-  ChevronDown
+  ChevronDown,
+  CalendarSearch
 } from "lucide-react";
 import {
   Sidebar,
@@ -34,6 +35,11 @@ const navItems = [
     title: "Slates",
     url: "/",
     icon: LayoutGrid,
+  },
+  {
+    title: "Upcoming",
+    url: "/upcoming",
+    icon: CalendarSearch,
   },
   {
     title: "Frameworks",

@@ -14,11 +14,13 @@ import GameWorkspacePage from "@/pages/game-workspace";
 import FrameworksPage from "@/pages/frameworks";
 import HistoryPage from "@/pages/history";
 import SettingsPage from "@/pages/settings";
+import UpcomingGamesPage from "@/pages/upcoming-games";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={SlatesPage} />
+      <Route path="/upcoming" component={UpcomingGamesPage} />
       <Route path="/slates/:id" component={SlateDetailPage} />
       <Route path="/slates/:slateId/games/:gameId" component={GameWorkspacePage} />
       <Route path="/frameworks" component={FrameworksPage} />
