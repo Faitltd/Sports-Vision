@@ -602,12 +602,14 @@ export async function registerRoutes(
 
   app.post("/api/upcoming-games/search", async (req: Request, res: Response) => {
     try {
-      const { query } = req.body;
-      if (!query || typeof query !== "string") {
-        return res.status(400).json({ error: "Query is required" });
+      const { sport, query } = req.body;
+      const validSports = ["nfl", "ncaaf", "ncaab", "nba"];
+      
+      if (!sport || !validSports.includes(sport)) {
+        return res.status(400).json({ error: "Valid sport is required (nfl, ncaaf, ncaab, nba)" });
       }
 
-      const result = await searchUpcomingGames(query);
+      const result = await searchUpcomingGames(sport, query);
       res.json(result);
     } catch (error) {
       console.error("Upcoming games search error:", error);
@@ -617,12 +619,13 @@ export async function registerRoutes(
 
   app.post("/api/upcoming-games/research", async (req: Request, res: Response) => {
     try {
-      const { awayTeam, homeTeam, gameTime } = req.body;
+      const { awayTeam, homeTeam, sport, gameTime } = req.body;
       if (!awayTeam || !homeTeam) {
         return res.status(400).json({ error: "Teams are required" });
       }
 
-      const result = await researchMatchup(awayTeam, homeTeam, gameTime);
+      const validSport = ["nfl", "ncaaf", "ncaab", "nba"].includes(sport) ? sport : "ncaaf";
+      const result = await researchMatchup(awayTeam, homeTeam, validSport, gameTime);
       res.json(result);
     } catch (error) {
       console.error("Matchup research error:", error);

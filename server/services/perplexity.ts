@@ -240,18 +240,48 @@ interface UpcomingGame {
   tvNetwork?: string;
   conference?: string;
   notes?: string;
+  sport?: string;
 }
 
 interface UpcomingGamesResult {
   games: UpcomingGame[];
   searchQuery: string;
+  sport: string;
   timestamp: string;
   sources: string[];
 }
 
-export async function searchUpcomingGames(query: string): Promise<UpcomingGamesResult> {
-  const systemPrompt = `You are a college football schedule and betting information assistant.
-Your job is to find upcoming NCAAF games based on the user's query.
+type Sport = "nfl" | "ncaaf" | "ncaab" | "nba";
+
+const sportConfig: Record<Sport, { name: string; defaultQuery: string; description: string }> = {
+  nfl: {
+    name: "NFL",
+    defaultQuery: "upcoming NFL games this week",
+    description: "National Football League"
+  },
+  ncaaf: {
+    name: "NCAA Football",
+    defaultQuery: "upcoming college football games this week",
+    description: "NCAA Division I Football"
+  },
+  ncaab: {
+    name: "NCAA Basketball",
+    defaultQuery: "upcoming college basketball games this week",
+    description: "NCAA Division I Men's Basketball"
+  },
+  nba: {
+    name: "NBA",
+    defaultQuery: "upcoming NBA games this week",
+    description: "National Basketball Association"
+  }
+};
+
+export async function searchUpcomingGames(sport: Sport, query?: string): Promise<UpcomingGamesResult> {
+  const config = sportConfig[sport];
+  const searchQuery = query || config.defaultQuery;
+  
+  const systemPrompt = `You are a ${config.name} schedule and betting information assistant.
+Your job is to find upcoming ${config.name} games based on the user's query.
 
 Return JSON in this exact format:
 {
@@ -260,12 +290,12 @@ Return JSON in this exact format:
       "id": "unique-id-123",
       "awayTeam": "Away Team Name",
       "homeTeam": "Home Team Name",
-      "gameTime": "Saturday, Nov 23 at 3:30 PM ET",
-      "spread": "Home -7.5",
-      "overUnder": "54.5",
-      "venue": "Stadium Name, City",
-      "tvNetwork": "ESPN",
-      "conference": "SEC vs Big Ten",
+      "gameTime": "Day, Month Date at Time ET",
+      "spread": "Favorite -7.5",
+      "overUnder": "Total points",
+      "venue": "Stadium/Arena Name, City",
+      "tvNetwork": "Broadcast network",
+      "conference": "Conference/Division info",
       "notes": "Any relevant notes"
     }
   ]
@@ -274,12 +304,13 @@ Return JSON in this exact format:
 Important:
 - Include actual game times and dates
 - Include betting lines if available (spread and over/under)
-- Include TV network information
+- Include TV/streaming network information
 - Generate unique IDs for each game (use format like "game-timestamp-index")
-- Focus on FBS college football games
-- Return up to 10 most relevant games`;
+- Focus on ${config.description} games
+- Return up to 10 most relevant games
+- Today's date context: Use current real-world schedule data`;
 
-  const userPrompt = `Find upcoming college football games matching this query: "${query}"
+  const userPrompt = `Find ${config.name} games matching this query: "${searchQuery}"
 
 Include game times, betting lines if available, TV networks, and venues.`;
 
@@ -304,11 +335,13 @@ Include game times, betting lines if available, TV networks, and venues.`;
     const games = (parsedContent.games || []).map((g, i) => ({
       ...g,
       id: g.id || `game-${Date.now()}-${i}`,
+      sport: sport,
     }));
 
     return {
       games,
-      searchQuery: query,
+      searchQuery,
+      sport,
       timestamp: new Date().toISOString(),
       sources: citations,
     };
@@ -316,7 +349,8 @@ Include game times, betting lines if available, TV networks, and venues.`;
     console.error("Perplexity upcoming games search error:", error);
     return {
       games: [],
-      searchQuery: query,
+      searchQuery,
+      sport,
       timestamp: new Date().toISOString(),
       sources: [],
     };
@@ -326,9 +360,12 @@ Include game times, betting lines if available, TV networks, and venues.`;
 export async function researchMatchup(
   awayTeam: string,
   homeTeam: string,
+  sport: Sport = "ncaaf",
   gameTime?: string
 ): Promise<{ content: string; sources: string[] }> {
-  const systemPrompt = `You are a college football betting analyst.
+  const config = sportConfig[sport];
+  
+  const systemPrompt = `You are a ${config.name} betting analyst.
 Provide a concise research summary for the matchup that would help with betting decisions.
 
 Focus on:
@@ -336,12 +373,12 @@ Focus on:
 2. Key player injuries or absences
 3. Head-to-head history
 4. Betting trends and public money
-5. Weather impact if relevant
+5. ${sport === "nfl" || sport === "ncaaf" ? "Weather impact if relevant" : "Rest days and travel"}
 6. Motivation factors
 
 Keep the summary to 3-5 paragraphs, focused on actionable betting insights.`;
 
-  const userPrompt = `Research the college football matchup: ${awayTeam} at ${homeTeam}${gameTime ? ` (${gameTime})` : ""}.
+  const userPrompt = `Research the ${config.name} matchup: ${awayTeam} at ${homeTeam}${gameTime ? ` (${gameTime})` : ""}.
 
 Provide a betting-focused analysis with key factors that could affect the spread and total.`;
 

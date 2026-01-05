@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -32,6 +33,8 @@ import {
 } from "lucide-react";
 import type { Slate } from "@shared/schema";
 
+type Sport = "nfl" | "ncaaf" | "ncaab" | "nba";
+
 interface UpcomingGame {
   id: string;
   awayTeam: string;
@@ -43,20 +46,56 @@ interface UpcomingGame {
   tvNetwork?: string;
   conference?: string;
   notes?: string;
+  sport?: string;
   sources?: string[];
 }
 
 interface SearchResult {
   games: UpcomingGame[];
   searchQuery: string;
+  sport: string;
   timestamp: string;
   sources: string[];
 }
 
+const sportLabels: Record<Sport, string> = {
+  nfl: "NFL",
+  ncaaf: "NCAA FB",
+  ncaab: "NCAA BB",
+  nba: "NBA",
+};
+
+const sportQuickFilters: Record<Sport, { label: string; query: string }[]> = {
+  nfl: [
+    { label: "This Week", query: "NFL games this week" },
+    { label: "Sunday Slate", query: "NFL games Sunday" },
+    { label: "Thursday Night", query: "NFL Thursday Night Football" },
+    { label: "Monday Night", query: "NFL Monday Night Football" },
+  ],
+  ncaaf: [
+    { label: "This Week", query: "college football games this week" },
+    { label: "SEC Games", query: "SEC football games this Saturday" },
+    { label: "Big Ten", query: "Big Ten football games this Saturday" },
+    { label: "Playoffs", query: "College football playoff games" },
+  ],
+  ncaab: [
+    { label: "Today", query: "college basketball games today" },
+    { label: "Top 25", query: "Top 25 college basketball games this week" },
+    { label: "ACC Games", query: "ACC basketball games this week" },
+    { label: "Big 12", query: "Big 12 basketball games this week" },
+  ],
+  nba: [
+    { label: "Tonight", query: "NBA games tonight" },
+    { label: "This Week", query: "NBA games this week" },
+    { label: "National TV", query: "NBA games on ESPN or TNT this week" },
+    { label: "Rivalry Games", query: "NBA rivalry matchups this week" },
+  ],
+};
+
 export default function UpcomingGamesPage() {
   const { toast } = useToast();
-  const [searchQuery, setSearchQuery] = useState("NCAAF games this week");
-  const [searchResults, setSearchResults] = useState<SearchResult | null>(null);
+  const [activeSport, setActiveSport] = useState<Sport>("nfl");
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedGame, setSelectedGame] = useState<UpcomingGame | null>(null);
   const [addToSlateOpen, setAddToSlateOpen] = useState(false);
   const [selectedSlateId, setSelectedSlateId] = useState<string>("");
@@ -68,18 +107,33 @@ export default function UpcomingGamesPage() {
 
   const activeSlates = slates.filter(s => s.status !== "archived");
 
+  const { data: defaultGames, isLoading: defaultLoading, refetch: refetchDefault } = useQuery<SearchResult>({
+    queryKey: ["/api/upcoming-games", activeSport, "default"],
+    queryFn: async () => {
+      const response = await apiRequest("POST", "/api/upcoming-games/search", { sport: activeSport });
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
   const searchMutation = useMutation({
-    mutationFn: async (query: string) => {
-      const response = await apiRequest("POST", "/api/upcoming-games/search", { query });
+    mutationFn: async ({ sport, query }: { sport: Sport; query: string }) => {
+      const response = await apiRequest("POST", "/api/upcoming-games/search", { sport, query });
       return response.json();
     },
     onSuccess: (data: SearchResult) => {
-      setSearchResults(data);
-      toast({ title: `Found ${data.games.length} upcoming games` });
+      queryClient.setQueryData(["/api/upcoming-games", activeSport, "search"], data);
+      toast({ title: `Found ${data.games.length} ${sportLabels[activeSport]} games` });
     },
     onError: () => {
-      toast({ title: "Search failed", description: "Could not fetch upcoming games", variant: "destructive" });
+      toast({ title: "Search failed", description: "Could not fetch games", variant: "destructive" });
     },
+  });
+
+  const { data: searchResults } = useQuery<SearchResult | null>({
+    queryKey: ["/api/upcoming-games", activeSport, "search"],
+    enabled: false,
+    staleTime: Infinity,
   });
 
   const researchMutation = useMutation({
@@ -87,6 +141,7 @@ export default function UpcomingGamesPage() {
       const response = await apiRequest("POST", "/api/upcoming-games/research", {
         awayTeam: game.awayTeam,
         homeTeam: game.homeTeam,
+        sport: activeSport,
         gameTime: game.gameTime,
       });
       return response.json();
@@ -119,10 +174,21 @@ export default function UpcomingGamesPage() {
     },
   });
 
+  useEffect(() => {
+    queryClient.removeQueries({ queryKey: ["/api/upcoming-games", activeSport, "search"] });
+    setSearchQuery("");
+    setResearchResults({});
+  }, [activeSport]);
+
   const handleSearch = () => {
     if (searchQuery.trim()) {
-      searchMutation.mutate(searchQuery);
+      searchMutation.mutate({ sport: activeSport, query: searchQuery });
     }
+  };
+
+  const handleQuickFilter = (query: string) => {
+    setSearchQuery(query);
+    searchMutation.mutate({ sport: activeSport, query });
   };
 
   const handleAddToSlate = (game: UpcomingGame) => {
@@ -136,20 +202,43 @@ export default function UpcomingGamesPage() {
     }
   };
 
+  const displayedGames = searchResults?.games || defaultGames?.games || [];
+  const isLoading = defaultLoading || searchMutation.isPending;
+  const displayQuery = searchResults?.searchQuery || defaultGames?.searchQuery || "";
+
   return (
     <div className="p-4 sm:p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold" data-testid="text-page-title">Upcoming Games</h1>
-          <p className="text-muted-foreground">Search for NCAAF games and research matchups</p>
+          <p className="text-muted-foreground">Browse and research upcoming games across sports</p>
         </div>
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={() => refetchDefault()}
+          disabled={isLoading}
+          data-testid="button-refresh"
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
       </div>
 
+      <Tabs value={activeSport} onValueChange={(v) => setActiveSport(v as Sport)} className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="nfl" data-testid="tab-nfl">NFL</TabsTrigger>
+          <TabsTrigger value="ncaaf" data-testid="tab-ncaaf">NCAA FB</TabsTrigger>
+          <TabsTrigger value="ncaab" data-testid="tab-ncaab">NCAA BB</TabsTrigger>
+          <TabsTrigger value="nba" data-testid="tab-nba">NBA</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Search className="h-5 w-5" />
-            Search for Games
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Search className="h-4 w-4" />
+            Search {sportLabels[activeSport]} Games
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -157,14 +246,14 @@ export default function UpcomingGamesPage() {
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="e.g., NCAAF games this week, SEC football Saturday"
+              placeholder={`Search ${sportLabels[activeSport]} games...`}
               className="flex-1"
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               data-testid="input-search-games"
             />
             <Button 
               onClick={handleSearch}
-              disabled={searchMutation.isPending}
+              disabled={searchMutation.isPending || !searchQuery.trim()}
               data-testid="button-search"
             >
               {searchMutation.isPending ? (
@@ -177,43 +266,22 @@ export default function UpcomingGamesPage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              disabled={searchMutation.isPending}
-              onClick={() => { setSearchQuery("NCAAF games this week"); searchMutation.mutate("NCAAF games this week"); }}
-            >
-              This Week
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              disabled={searchMutation.isPending}
-              onClick={() => { setSearchQuery("SEC football games this Saturday"); searchMutation.mutate("SEC football games this Saturday"); }}
-            >
-              SEC Games
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              disabled={searchMutation.isPending}
-              onClick={() => { setSearchQuery("Big Ten football games this Saturday"); searchMutation.mutate("Big Ten football games this Saturday"); }}
-            >
-              Big Ten Games
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              disabled={searchMutation.isPending}
-              onClick={() => { setSearchQuery("College football playoff games"); searchMutation.mutate("College football playoff games"); }}
-            >
-              Playoff Games
-            </Button>
+            {sportQuickFilters[activeSport].map((filter, i) => (
+              <Button 
+                key={i}
+                variant="outline" 
+                size="sm"
+                disabled={searchMutation.isPending}
+                onClick={() => handleQuickFilter(filter.query)}
+              >
+                {filter.label}
+              </Button>
+            ))}
           </div>
         </CardContent>
       </Card>
 
-      {searchMutation.isPending && (
+      {isLoading && (
         <div className="space-y-4">
           {[1, 2, 3].map(i => (
             <Card key={i}>
@@ -227,20 +295,20 @@ export default function UpcomingGamesPage() {
         </div>
       )}
 
-      {searchResults && !searchMutation.isPending && (
+      {!isLoading && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <h2 className="text-lg font-semibold">
-              Results for "{searchResults.searchQuery}"
+              {searchResults ? `Results for "${displayQuery}"` : `${sportLabels[activeSport]} Games`}
             </h2>
             <Badge variant="secondary">
-              {searchResults.games.length} games
+              {displayedGames.length} games
             </Badge>
           </div>
 
-          {searchResults.sources && searchResults.sources.length > 0 && (
+          {(searchResults?.sources || defaultGames?.sources)?.length > 0 && (
             <div className="text-sm text-muted-foreground">
-              Sources: {searchResults.sources.slice(0, 3).map((s, i) => (
+              Sources: {(searchResults?.sources || defaultGames?.sources || []).slice(0, 3).map((s, i) => (
                 <a 
                   key={i} 
                   href={s} 
@@ -254,15 +322,15 @@ export default function UpcomingGamesPage() {
             </div>
           )}
 
-          {searchResults.games.length === 0 ? (
+          {displayedGames.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center text-muted-foreground">
-                No games found. Try a different search query.
+                No games found. Try a different search or check back later.
               </CardContent>
             </Card>
           ) : (
             <div className="grid gap-4">
-              {searchResults.games.map((game) => (
+              {displayedGames.map((game) => (
                 <Card key={game.id} className="overflow-visible">
                   <CardContent className="p-4">
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
