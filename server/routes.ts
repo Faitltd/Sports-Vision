@@ -600,5 +600,39 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/upcoming-games/search", async (req: Request, res: Response) => {
+    try {
+      const { query } = req.body;
+      if (!query || typeof query !== "string") {
+        return res.status(400).json({ error: "Query is required" });
+      }
+
+      const { searchUpcomingGames } = await import("./services/perplexity");
+      const result = await searchUpcomingGames(query);
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Upcoming games search error:", error);
+      res.status(500).json({ error: "Failed to search for upcoming games" });
+    }
+  });
+
+  app.post("/api/upcoming-games/research", async (req: Request, res: Response) => {
+    try {
+      const { awayTeam, homeTeam, gameTime } = req.body;
+      if (!awayTeam || !homeTeam) {
+        return res.status(400).json({ error: "Teams are required" });
+      }
+
+      const { researchMatchup } = await import("./services/perplexity");
+      const result = await researchMatchup(awayTeam, homeTeam, gameTime);
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Matchup research error:", error);
+      res.status(500).json({ error: "Failed to research matchup" });
+    }
+  });
+
   return httpServer;
 }

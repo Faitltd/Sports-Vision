@@ -228,3 +228,138 @@ Research the specific topic requested and return findings in JSON format:
     return { findings: [], citations: [] };
   }
 }
+
+interface UpcomingGame {
+  id: string;
+  awayTeam: string;
+  homeTeam: string;
+  gameTime: string;
+  spread?: string;
+  overUnder?: string;
+  venue?: string;
+  tvNetwork?: string;
+  conference?: string;
+  notes?: string;
+}
+
+interface UpcomingGamesResult {
+  games: UpcomingGame[];
+  searchQuery: string;
+  timestamp: string;
+  sources: string[];
+}
+
+export async function searchUpcomingGames(query: string): Promise<UpcomingGamesResult> {
+  const systemPrompt = `You are a college football schedule and betting information assistant.
+Your job is to find upcoming NCAAF games based on the user's query.
+
+Return JSON in this exact format:
+{
+  "games": [
+    {
+      "id": "unique-id-123",
+      "awayTeam": "Away Team Name",
+      "homeTeam": "Home Team Name",
+      "gameTime": "Saturday, Nov 23 at 3:30 PM ET",
+      "spread": "Home -7.5",
+      "overUnder": "54.5",
+      "venue": "Stadium Name, City",
+      "tvNetwork": "ESPN",
+      "conference": "SEC vs Big Ten",
+      "notes": "Any relevant notes"
+    }
+  ]
+}
+
+Important:
+- Include actual game times and dates
+- Include betting lines if available (spread and over/under)
+- Include TV network information
+- Generate unique IDs for each game (use format like "game-timestamp-index")
+- Focus on FBS college football games
+- Return up to 10 most relevant games`;
+
+  const userPrompt = `Find upcoming college football games matching this query: "${query}"
+
+Include game times, betting lines if available, TV networks, and venues.`;
+
+  try {
+    const { content, citations } = await queryPerplexity([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ]);
+
+    let parsedContent: { games: UpcomingGame[] };
+    try {
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsedContent = JSON.parse(jsonMatch[0]);
+      } else {
+        parsedContent = { games: [] };
+      }
+    } catch {
+      parsedContent = { games: [] };
+    }
+
+    const games = (parsedContent.games || []).map((g, i) => ({
+      ...g,
+      id: g.id || `game-${Date.now()}-${i}`,
+    }));
+
+    return {
+      games,
+      searchQuery: query,
+      timestamp: new Date().toISOString(),
+      sources: citations,
+    };
+  } catch (error) {
+    console.error("Perplexity upcoming games search error:", error);
+    return {
+      games: [],
+      searchQuery: query,
+      timestamp: new Date().toISOString(),
+      sources: [],
+    };
+  }
+}
+
+export async function researchMatchup(
+  awayTeam: string,
+  homeTeam: string,
+  gameTime?: string
+): Promise<{ content: string; sources: string[] }> {
+  const systemPrompt = `You are a college football betting analyst.
+Provide a concise research summary for the matchup that would help with betting decisions.
+
+Focus on:
+1. Recent team performance (last 3-5 games)
+2. Key player injuries or absences
+3. Head-to-head history
+4. Betting trends and public money
+5. Weather impact if relevant
+6. Motivation factors
+
+Keep the summary to 3-5 paragraphs, focused on actionable betting insights.`;
+
+  const userPrompt = `Research the college football matchup: ${awayTeam} at ${homeTeam}${gameTime ? ` (${gameTime})` : ""}.
+
+Provide a betting-focused analysis with key factors that could affect the spread and total.`;
+
+  try {
+    const { content, citations } = await queryPerplexity([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ]);
+
+    return {
+      content: content || "No research data available.",
+      sources: citations,
+    };
+  } catch (error) {
+    console.error("Perplexity matchup research error:", error);
+    return {
+      content: "Research failed. Please try again.",
+      sources: [],
+    };
+  }
+}
