@@ -1,0 +1,230 @@
+import { z } from "zod";
+
+const PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions";
+
+const researchResultSchema = z.object({
+  findings: z.array(z.object({
+    category: z.string(),
+    headline: z.string(),
+    snippet: z.string(),
+    source: z.string(),
+    sourceUrl: z.string().nullable(),
+    relevanceScore: z.number(),
+    isUncertain: z.boolean().default(false),
+    uncertaintyReason: z.string().nullable().default(null),
+  })),
+  citations: z.array(z.object({
+    index: z.number(),
+    url: z.string(),
+    title: z.string(),
+  })),
+});
+
+export type ResearchFinding = z.infer<typeof researchResultSchema>["findings"][number];
+export type Citation = z.infer<typeof researchResultSchema>["citations"][number];
+export type ResearchResult = z.infer<typeof researchResultSchema>;
+
+interface PerplexityMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+interface PerplexityResponse {
+  id: string;
+  model: string;
+  choices: Array<{
+    index: number;
+    message: {
+      role: string;
+      content: string;
+    };
+    finish_reason: string;
+  }>;
+  citations?: string[];
+}
+
+async function queryPerplexity(messages: PerplexityMessage[]): Promise<{ content: string; citations: string[] }> {
+  const apiKey = process.env.PERPLEXITY_API_KEY;
+  if (!apiKey) {
+    throw new Error("PERPLEXITY_API_KEY is not configured");
+  }
+
+  const response = await fetch(PERPLEXITY_API_URL, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "sonar",
+      messages,
+      return_citations: true,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Perplexity API error: ${response.status} - ${error}`);
+  }
+
+  const data = await response.json() as PerplexityResponse;
+  const content = data.choices[0]?.message?.content || "";
+  const citations = data.citations || [];
+  
+  return { content, citations };
+}
+
+export async function researchGame(homeTeam: string, awayTeam: string): Promise<ResearchResult> {
+  const systemPrompt = `You are a college football research assistant focused on betting analysis.
+Your job is to find the most relevant, recent information that could affect betting decisions.
+
+Research these categories:
+1. QB Status - Starting quarterback situation, injuries, suspensions, transfers
+2. Key Injuries - Impact players out or questionable
+3. Opt-Outs - Players sitting out for NFL draft
+4. Coaching - New coaches, coordinator changes, recent firings
+5. Motivation - Rivalry game, bowl eligibility, ranking implications
+6. Recent Performance - Last 3-5 game trends
+
+Return JSON in this exact format:
+{
+  "findings": [
+    {
+      "category": "qb|injury|portal|coaching|motivation|performance",
+      "headline": "Brief headline",
+      "snippet": "2-3 sentence summary with key facts",
+      "source": "Source name",
+      "sourceUrl": "URL or null",
+      "relevanceScore": 0.0-1.0,
+      "isUncertain": false,
+      "uncertaintyReason": null
+    }
+  ],
+  "citations": [
+    {
+      "index": 0,
+      "url": "full URL",
+      "title": "Article title"
+    }
+  ]
+}
+
+Important:
+- Focus on information from the last 7 days
+- Mark findings as uncertain if sources conflict or info is unverified
+- Higher relevance scores (0.8-1.0) for confirmed news directly affecting the game
+- Lower scores (0.3-0.6) for speculation or tangential information
+- Always include source attribution`;
+
+  const userPrompt = `Research the upcoming college football game: ${awayTeam} at ${homeTeam}.
+
+Find the latest information on:
+1. Quarterback situation for both teams
+2. Key player injuries or absences
+3. Transfer portal activity and opt-outs
+4. Coaching staff changes
+5. Motivation factors (rivalry, bowl eligibility, rankings)
+6. Recent performance trends
+
+Prioritize information that would be relevant for betting analysis.`;
+
+  try {
+    const { content, citations } = await queryPerplexity([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ]);
+
+    let parsedContent: Record<string, unknown>;
+    try {
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsedContent = JSON.parse(jsonMatch[0]);
+      } else {
+        parsedContent = { findings: [], citations: [] };
+      }
+    } catch {
+      parsedContent = { findings: [], citations: [] };
+    }
+
+    const findingsWithCitations = (parsedContent.findings as ResearchFinding[] || []).map((f, i) => ({
+      ...f,
+      sourceUrl: citations[i] || f.sourceUrl || null,
+    }));
+
+    const citationsFormatted = citations.map((url, index) => ({
+      index,
+      url,
+      title: new URL(url).hostname,
+    }));
+
+    return {
+      findings: findingsWithCitations,
+      citations: citationsFormatted,
+    };
+  } catch (error) {
+    console.error("Perplexity research error:", error);
+    return { findings: [], citations: [] };
+  }
+}
+
+export async function researchSpecificTopic(
+  homeTeam: string, 
+  awayTeam: string, 
+  topic: string
+): Promise<ResearchResult> {
+  const systemPrompt = `You are a college football research assistant.
+Research the specific topic requested and return findings in JSON format:
+{
+  "findings": [
+    {
+      "category": "relevant category",
+      "headline": "Brief headline",
+      "snippet": "2-3 sentence summary",
+      "source": "Source name",
+      "sourceUrl": "URL or null",
+      "relevanceScore": 0.0-1.0,
+      "isUncertain": false,
+      "uncertaintyReason": null
+    }
+  ],
+  "citations": []
+}`;
+
+  const userPrompt = `For the game ${awayTeam} at ${homeTeam}, research: ${topic}`;
+
+  try {
+    const { content, citations } = await queryPerplexity([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ]);
+
+    let parsedContent: Record<string, unknown>;
+    try {
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsedContent = JSON.parse(jsonMatch[0]);
+      } else {
+        parsedContent = { findings: [], citations: [] };
+      }
+    } catch {
+      parsedContent = { findings: [], citations: [] };
+    }
+
+    const findingsWithCitations = (parsedContent.findings as ResearchFinding[] || []).map((f, i) => ({
+      ...f,
+      sourceUrl: citations[i] || f.sourceUrl || null,
+    }));
+
+    return {
+      findings: findingsWithCitations,
+      citations: citations.map((url, index) => ({
+        index,
+        url,
+        title: new URL(url).hostname,
+      })),
+    };
+  } catch (error) {
+    console.error("Perplexity research error:", error);
+    return { findings: [], citations: [] };
+  }
+}
