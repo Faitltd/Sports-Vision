@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus, Settings, History, Layers, ChevronRight, Trash2 } from "lucide-react";
+import { Plus, Settings, History, Layers, ChevronRight, Trash2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -411,7 +411,7 @@ function VersionHistory({ frameworkId }: { frameworkId: string }) {
   );
 }
 
-function FrameworkEditor({ framework }: { framework: Framework }) {
+function FrameworkEditor({ framework, onBack }: { framework: Framework; onBack: () => void }) {
   const [weights, setWeights] = useState<Weights>(
     (framework.weights as Weights) || defaultWeights
   );
@@ -456,12 +456,23 @@ function FrameworkEditor({ framework }: { framework: Framework }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold">{framework.name}</h2>
-          <p className="text-sm text-muted-foreground">{framework.description}</p>
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-3">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={onBack}
+            className="md:hidden"
+            data-testid="button-back-frameworks"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg sm:text-xl font-semibold truncate">{framework.name}</h2>
+            <p className="text-sm text-muted-foreground truncate">{framework.description}</p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">v{framework.version}</Badge>
           {framework.isActive ? (
             <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">Active</Badge>
@@ -542,11 +553,11 @@ export default function FrameworksPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <Skeleton className="h-8 w-48 mb-6" />
-        <div className="grid grid-cols-3 gap-4">
+        <div className="space-y-3">
           {[1, 2, 3].map(i => (
-            <Skeleton key={i} className="h-32" />
+            <Skeleton key={i} className="h-20" />
           ))}
         </div>
       </div>
@@ -555,8 +566,10 @@ export default function FrameworksPage() {
 
   return (
     <div className="flex h-full">
-      <div className="w-80 shrink-0 border-r p-4 overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
+      <div className={`w-full md:w-80 shrink-0 md:border-r p-4 overflow-y-auto ${
+        selectedId ? "hidden md:block" : "block"
+      }`}>
+        <div className="flex items-center justify-between gap-2 mb-4">
           <h1 className="text-lg font-semibold" data-testid="text-page-title">Frameworks</h1>
           <CreateFrameworkDialog />
         </div>
@@ -571,9 +584,9 @@ export default function FrameworksPage() {
               }`}
               data-testid={`button-framework-${framework.id}`}
             >
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-medium">{framework.name}</span>
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="font-medium truncate">{framework.name}</span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="text-xs">v{framework.version}</Badge>
@@ -594,9 +607,11 @@ export default function FrameworksPage() {
         </div>
       </div>
 
-      <div className="flex-1 p-6 overflow-y-auto">
+      <div className={`flex-1 p-4 sm:p-6 overflow-y-auto ${
+        selectedId ? "block" : "hidden md:block"
+      }`}>
         {selectedFramework ? (
-          <FrameworkEditor framework={selectedFramework} />
+          <FrameworkEditor framework={selectedFramework} onBack={() => setSelectedId(null)} />
         ) : (
           <div className="flex items-center justify-center h-full text-muted-foreground">
             <div className="text-center">
