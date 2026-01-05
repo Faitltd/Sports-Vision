@@ -9,6 +9,7 @@ import { z } from "zod";
 import { extractGamesFromImage, extractGamesFromText } from "./services/ocr";
 import { researchGame, researchSpecificTopic, searchUpcomingGames, researchMatchup } from "./services/perplexity";
 import { analyzeAndUpdateGame, analyzeSlate } from "./services/analysis";
+import { searchNFLGames, getNFLGamesForWeek, isNFLApiConfigured } from "./services/nflApi";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -607,6 +608,26 @@ export async function registerRoutes(
       
       if (!sport || !validSports.includes(sport)) {
         return res.status(400).json({ error: "Valid sport is required (nfl, ncaaf, ncaab, nba)" });
+      }
+
+      if (sport === "nfl" && isNFLApiConfigured()) {
+        try {
+          const games = query 
+            ? await searchNFLGames(query) 
+            : await getNFLGamesForWeek();
+          
+          if (games.length > 0) {
+            return res.json({
+              games,
+              searchQuery: query || "NFL games this week",
+              sport: "nfl",
+              timestamp: new Date().toISOString(),
+              sources: ["API-Sports NFL API"],
+            });
+          }
+        } catch (nflApiError) {
+          console.log("NFL API failed, falling back to Perplexity:", nflApiError);
+        }
       }
 
       const result = await searchUpcomingGames(sport, query);

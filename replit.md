@@ -125,8 +125,14 @@ A framework-driven college football betting analysis tool that emphasizes transp
 ## Environment Variables
 - `DATABASE_URL` - PostgreSQL connection string
 - `PERPLEXITY_API_KEY` - For research/evidence gathering
+- `NFL_API_KEY` - For NFL game data from API-Sports (100 req/day free tier)
 - `AI_INTEGRATIONS_OPENAI_API_KEY` - For OCR (managed by Replit)
 - `AI_INTEGRATIONS_OPENAI_BASE_URL` - OpenAI base URL (managed by Replit)
+
+## Data Sources
+- **NFL Games**: Primary from API-Sports NFL API, fallback to Perplexity
+- **NCAA/NBA Games**: Perplexity AI search with sport-specific prompts
+- **Research/Analysis**: Perplexity AI with citations
 
 ## Development
 ```bash
