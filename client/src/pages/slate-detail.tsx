@@ -11,14 +11,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -39,7 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Slate, Game } from "@shared/schema";
 
-function GameRow({ game, slateId }: { game: Game; slateId: string }) {
+function GameCard({ game, slateId }: { game: Game; slateId: string }) {
   const statusIcons: Record<string, React.ReactNode> = {
     pending: <AlertCircle className="h-4 w-4 text-muted-foreground" />,
     enriching: <RefreshCw className="h-4 w-4 text-amber-500 animate-spin" />,
@@ -69,91 +61,95 @@ function GameRow({ game, slateId }: { game: Game; slateId: string }) {
     },
   });
 
+  const confidenceAvg = game.confidenceLow && game.confidenceHigh 
+    ? Math.round((game.confidenceLow + game.confidenceHigh) / 2)
+    : null;
+
   return (
-    <TableRow data-testid={`row-game-${game.id}`}>
-      <TableCell className="font-medium">
-        <Link 
-          href={`/slates/${slateId}/games/${game.id}`}
-          className="hover:underline"
-          data-testid={`link-game-${game.id}`}
-        >
-          <div className="flex flex-col gap-1">
-            <span>{game.awayTeam}</span>
-            <span className="text-muted-foreground">@ {game.homeTeam}</span>
+    <Card 
+      className="hover-elevate"
+      data-testid={`card-game-${game.id}`}
+    >
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <Link 
+            href={`/slates/${slateId}/games/${game.id}`}
+            className="flex-1"
+            data-testid={`link-game-${game.id}`}
+          >
+            <div className="font-medium">
+              <span>{game.awayTeam}</span>
+              <span className="text-muted-foreground"> @ </span>
+              <span>{game.homeTeam}</span>
+            </div>
+          </Link>
+          <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1">
+              {statusIcons[game.status] || statusIcons.pending}
+              <span className="capitalize text-xs text-muted-foreground">{game.status}</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => lockMutation.mutate()}
+              disabled={lockMutation.isPending}
+              data-testid={`button-lock-${game.id}`}
+            >
+              {game.isLocked ? (
+                <Lock className="h-4 w-4" />
+              ) : (
+                <Unlock className="h-4 w-4" />
+              )}
+            </Button>
           </div>
-        </Link>
-      </TableCell>
-      <TableCell className="font-mono text-sm">
-        {game.spread !== null ? (
-          <span>
-            {game.spreadTeam} {game.spread > 0 ? "+" : ""}{game.spread}
-          </span>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
-      </TableCell>
-      <TableCell className="font-mono text-sm">
-        {game.total !== null ? (
-          <span>O/U {game.total}</span>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
-      </TableCell>
-      <TableCell>
-        <div className="flex items-center gap-2">
-          {statusIcons[game.status] || statusIcons.pending}
-          <span className="capitalize text-sm">{game.status}</span>
         </div>
-      </TableCell>
-      <TableCell>
-        {game.pick ? (
-          <div className="flex flex-col gap-1">
-            <Badge variant="secondary" className="w-fit font-mono">
-              {game.pick} {game.pickLine && `${game.pickLine > 0 ? "+" : ""}${game.pickLine}`}
+        
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          {game.spread !== null && (
+            <Badge variant="outline" className="font-mono text-xs">
+              {game.spreadTeam} {game.spread > 0 ? "+" : ""}{game.spread}
             </Badge>
-            {game.pickEdge && (
-              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-mono">
-                Edge: +{game.pickEdge}
-              </span>
+          )}
+          {game.total !== null && (
+            <Badge variant="outline" className="font-mono text-xs">
+              O/U {game.total}
+            </Badge>
+          )}
+        </div>
+
+        {(game.pick || confidenceAvg) && (
+          <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t">
+            {game.pick ? (
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="font-mono">
+                  {game.pick}
+                </Badge>
+                {game.pickEdge && (
+                  <span className="text-xs text-emerald-600 dark:text-emerald-400 font-mono">
+                    +{game.pickEdge}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span className="text-muted-foreground text-sm">No pick</span>
+            )}
+            {confidenceAvg && (
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-12 bg-muted rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-primary rounded-full"
+                    style={{ width: `${confidenceAvg}%` }}
+                  />
+                </div>
+                <span className="text-xs font-mono text-muted-foreground">
+                  {game.confidenceLow}-{game.confidenceHigh}%
+                </span>
+              </div>
             )}
           </div>
-        ) : (
-          <span className="text-muted-foreground text-sm">No pick</span>
         )}
-      </TableCell>
-      <TableCell>
-        {game.confidenceLow && game.confidenceHigh ? (
-          <div className="flex items-center gap-2">
-            <div className="h-2 w-16 bg-muted rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-primary rounded-full"
-                style={{ width: `${((game.confidenceLow + game.confidenceHigh) / 2) * 100}%` }}
-              />
-            </div>
-            <span className="text-xs font-mono">
-              {Math.round(game.confidenceLow * 100)}-{Math.round(game.confidenceHigh * 100)}%
-            </span>
-          </div>
-        ) : (
-          <span className="text-muted-foreground text-sm">—</span>
-        )}
-      </TableCell>
-      <TableCell>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => lockMutation.mutate()}
-          disabled={lockMutation.isPending}
-          data-testid={`button-lock-${game.id}`}
-        >
-          {game.isLocked ? (
-            <Lock className="h-4 w-4" />
-          ) : (
-            <Unlock className="h-4 w-4" />
-          )}
-        </Button>
-      </TableCell>
-    </TableRow>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -470,22 +466,27 @@ export default function SlateDetailPage() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center gap-4 mb-6">
-        <Link href="/">
-          <Button variant="ghost" size="icon" data-testid="button-back">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <div className="flex-1">
-          <h1 className="text-2xl font-semibold" data-testid="text-slate-title">{slate.name}</h1>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>{games.length} games</span>
-            <span>•</span>
-            <span>{lockedCount} locked</span>
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto">
+      <div className="flex flex-col gap-4 mb-6">
+        <div className="flex items-center gap-3">
+          <Link href="/">
+            <Button variant="ghost" size="icon" data-testid="button-back">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl font-semibold truncate" data-testid="text-slate-title">
+              {slate.name}
+            </h1>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>{games.length} games</span>
+              <span>•</span>
+              <span>{lockedCount} locked</span>
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        
+        <div className="flex flex-wrap items-center gap-2">
           <UploadScreenshotDialog slateId={id!} />
           <AddGameDialog slateId={id!} />
           <Button 
@@ -497,12 +498,14 @@ export default function SlateDetailPage() {
             {enrichMutation.isPending ? (
               <>
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Enriching...
+                <span className="hidden sm:inline">Enriching...</span>
+                <span className="sm:hidden">...</span>
               </>
             ) : (
               <>
                 <Play className="h-4 w-4 mr-2" />
-                Run Research
+                <span className="hidden sm:inline">Run Research</span>
+                <span className="sm:hidden">Research</span>
               </>
             )}
           </Button>
@@ -512,48 +515,29 @@ export default function SlateDetailPage() {
             data-testid="button-export"
           >
             <Download className="h-4 w-4 mr-2" />
-            Export ({lockedCount})
+            <span className="hidden sm:inline">Export ({lockedCount})</span>
+            <span className="sm:hidden">{lockedCount}</span>
           </Button>
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Games</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {games.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Matchup</TableHead>
-                  <TableHead>Spread</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Pick</TableHead>
-                  <TableHead>Confidence</TableHead>
-                  <TableHead className="w-12"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {games.map((game) => (
-                  <GameRow key={game.id} game={game} slateId={id!} />
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground mb-4">
-                No games in this slate yet. Add games manually or upload a screenshot.
-              </p>
-              <div className="flex items-center justify-center gap-2">
-                <UploadScreenshotDialog slateId={id!} />
-                <AddGameDialog slateId={id!} />
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {games.length > 0 ? (
+        <div className="flex flex-col gap-3">
+          {games.map((game) => (
+            <GameCard key={game.id} game={game} slateId={id!} />
+          ))}
+        </div>
+      ) : (
+        <Card className="p-8 sm:p-12 text-center">
+          <p className="text-muted-foreground mb-4">
+            No games in this slate yet. Add games manually or upload a screenshot.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <UploadScreenshotDialog slateId={id!} />
+            <AddGameDialog slateId={id!} />
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
