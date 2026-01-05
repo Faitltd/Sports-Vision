@@ -7,7 +7,7 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 import { extractGamesFromImage, extractGamesFromText } from "./services/ocr";
-import { researchGame, researchSpecificTopic } from "./services/perplexity";
+import { researchGame, researchSpecificTopic, searchUpcomingGames, researchMatchup } from "./services/perplexity";
 import { analyzeAndUpdateGame, analyzeSlate } from "./services/analysis";
 
 export async function registerRoutes(
@@ -607,9 +607,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Query is required" });
       }
 
-      const { searchUpcomingGames } = await import("./services/perplexity");
       const result = await searchUpcomingGames(query);
-      
       res.json(result);
     } catch (error) {
       console.error("Upcoming games search error:", error);
@@ -624,9 +622,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Teams are required" });
       }
 
-      const { researchMatchup } = await import("./services/perplexity");
       const result = await researchMatchup(awayTeam, homeTeam, gameTime);
-      
       res.json(result);
     } catch (error) {
       console.error("Matchup research error:", error);

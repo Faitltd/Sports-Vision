@@ -180,6 +180,7 @@ export default function UpcomingGamesPage() {
             <Button 
               variant="outline" 
               size="sm"
+              disabled={searchMutation.isPending}
               onClick={() => { setSearchQuery("NCAAF games this week"); searchMutation.mutate("NCAAF games this week"); }}
             >
               This Week
@@ -187,6 +188,7 @@ export default function UpcomingGamesPage() {
             <Button 
               variant="outline" 
               size="sm"
+              disabled={searchMutation.isPending}
               onClick={() => { setSearchQuery("SEC football games this Saturday"); searchMutation.mutate("SEC football games this Saturday"); }}
             >
               SEC Games
@@ -194,6 +196,7 @@ export default function UpcomingGamesPage() {
             <Button 
               variant="outline" 
               size="sm"
+              disabled={searchMutation.isPending}
               onClick={() => { setSearchQuery("Big Ten football games this Saturday"); searchMutation.mutate("Big Ten football games this Saturday"); }}
             >
               Big Ten Games
@@ -201,6 +204,7 @@ export default function UpcomingGamesPage() {
             <Button 
               variant="outline" 
               size="sm"
+              disabled={searchMutation.isPending}
               onClick={() => { setSearchQuery("College football playoff games"); searchMutation.mutate("College football playoff games"); }}
             >
               Playoff Games

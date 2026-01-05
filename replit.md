@@ -18,6 +18,12 @@ A framework-driven college football betting analysis tool that emphasizes transp
 - Batch enrichment with Perplexity research
 - CSV export of locked picks
 
+### Upcoming Games
+- Search for upcoming NCAAF games using natural language queries
+- Quick filter buttons for common searches (This Week, SEC, Big Ten, Playoffs)
+- Research individual matchups with betting-focused analysis
+- Add games directly to existing slates
+
 ### Per-Game Workspace
 - Three-panel layout: Recommendation, Evidence/Why, Data Snapshots
 - Lock/unlock picks for export
@@ -46,6 +52,7 @@ A framework-driven college football betting analysis tool that emphasizes transp
 │   │   └── theme-toggle.tsx
 │   ├── pages/           # Route pages
 │   │   ├── slates.tsx         # Slate grid
+│   │   ├── upcoming-games.tsx # Upcoming games search
 │   │   ├── slate-detail.tsx   # Slate games table
 │   │   ├── game-workspace.tsx # Per-game analysis
 │   │   ├── frameworks.tsx     # Framework editor
@@ -98,6 +105,10 @@ A framework-driven college football betting analysis tool that emphasizes transp
 ### OCR
 - `POST /api/ocr/image` - Extract games from screenshot
 - `POST /api/ocr/text` - Parse games from text
+
+### Upcoming Games
+- `POST /api/upcoming-games/search` - Search for upcoming NCAAF games
+- `POST /api/upcoming-games/research` - Research a specific matchup
 
 ## Database Models
 - **slates** - Betting slates with status tracking
