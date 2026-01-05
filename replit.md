@@ -18,10 +18,11 @@ A framework-driven college football betting analysis tool that emphasizes transp
 - Batch enrichment with Perplexity research
 - CSV export of locked picks
 
-### Upcoming Games
-- Search for upcoming NCAAF games using natural language queries
-- Quick filter buttons for common searches (This Week, SEC, Big Ten, Playoffs)
-- Research individual matchups with betting-focused analysis
+### Upcoming Games (Multi-Sport)
+- Browse and search games across NFL, NCAA Football, NCAA Basketball, and NBA
+- Sport tabs with auto-loaded default games on tab selection
+- Sport-specific quick filters (Sunday Slate for NFL, SEC Games for NCAAF, Top 25 for NCAAB)
+- Research individual matchups with sport-aware betting analysis
 - Add games directly to existing slates
 
 ### Per-Game Workspace

@@ -121,9 +121,9 @@ export default function UpcomingGamesPage() {
       const response = await apiRequest("POST", "/api/upcoming-games/search", { sport, query });
       return response.json();
     },
-    onSuccess: (data: SearchResult) => {
-      queryClient.setQueryData(["/api/upcoming-games", activeSport, "search"], data);
-      toast({ title: `Found ${data.games.length} ${sportLabels[activeSport]} games` });
+    onSuccess: (data: SearchResult, variables) => {
+      queryClient.setQueryData(["/api/upcoming-games", variables.sport, "search"], data);
+      toast({ title: `Found ${data.games.length} ${sportLabels[variables.sport]} games` });
     },
     onError: () => {
       toast({ title: "Search failed", description: "Could not fetch games", variant: "destructive" });
