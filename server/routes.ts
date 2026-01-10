@@ -15,6 +15,41 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  const enrichGame = async (gameId: string) => {
+    const game = await storage.getGame(gameId);
+    if (!game) {
+      return null;
+    }
+
+    await storage.updateGame(gameId, { status: "enriching" });
+    const research = await researchGame(game.homeTeam, game.awayTeam);
+
+    const evidenceItems = research.findings.map(f => ({
+      gameId: game.id,
+      type: "news" as const,
+      category: f.category,
+      source: f.source,
+      sourceUrl: f.sourceUrl,
+      headline: f.headline,
+      snippet: f.snippet,
+      relevanceScore: f.relevanceScore,
+      citations: research.citations,
+    }));
+
+    if (evidenceItems.length > 0) {
+      await storage.createEvidenceBatch(evidenceItems);
+    }
+
+    const analyzedGame = await analyzeAndUpdateGame(game.id);
+    await storage.updateGame(game.id, { status: "ready" });
+
+    return {
+      findingsCount: research.findings.length,
+      findings: research.findings,
+      citations: research.citations,
+      game: analyzedGame,
+    };
+  };
 
   app.get("/api/slates", async (req: Request, res: Response) => {
     try {
@@ -497,6 +532,26 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/games/:gameId/enrich", async (req: Request, res: Response) => {
+    try {
+      const result = await enrichGame(req.params.gameId);
+      if (!result) {
+        return res.status(404).json({ error: "Game not found" });
+      }
+
+      res.json({ 
+        success: true, 
+        findingsCount: result.findingsCount,
+        findings: result.findings,
+        citations: result.citations,
+        game: result.game,
+      });
+    } catch (error) {
+      console.error("Enrich error:", error);
+      res.status(500).json({ error: "Failed to enrich game" });
+    }
+  });
+
   app.post("/api/games/:gameId/analyze", async (req: Request, res: Response) => {
     try {
       const game = await storage.getGame(req.params.gameId);
@@ -556,35 +611,17 @@ export async function registerRoutes(
       const results = [];
       for (const game of games) {
         try {
-          await storage.updateGame(game.id, { status: "enriching" });
-          
-          const research = await researchGame(game.homeTeam, game.awayTeam);
-          
-          const evidenceItems = research.findings.map(f => ({
-            gameId: game.id,
-            type: "news" as const,
-            category: f.category,
-            source: f.source,
-            sourceUrl: f.sourceUrl,
-            headline: f.headline,
-            snippet: f.snippet,
-            relevanceScore: f.relevanceScore,
-            citations: research.citations,
-          }));
-
-          if (evidenceItems.length > 0) {
-            await storage.createEvidenceBatch(evidenceItems);
+          const enriched = await enrichGame(game.id);
+          if (!enriched) {
+            throw new Error("Game not found");
           }
-
-          const analyzedGame = await analyzeAndUpdateGame(game.id);
-          await storage.updateGame(game.id, { status: "ready" });
           results.push({ 
             gameId: game.id, 
             success: true, 
-            findingsCount: research.findings.length,
-            pick: analyzedGame?.pick,
-            confidenceLow: analyzedGame?.confidenceLow,
-            confidenceHigh: analyzedGame?.confidenceHigh
+            findingsCount: enriched.findingsCount,
+            pick: enriched.game?.pick,
+            confidenceLow: enriched.game?.confidenceLow,
+            confidenceHigh: enriched.game?.confidenceHigh
           });
         } catch (gameError) {
           console.error(`Research error for game ${game.id}:`, gameError);

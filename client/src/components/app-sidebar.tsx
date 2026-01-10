@@ -2,7 +2,6 @@ import { Link, useLocation } from "wouter";
 import { 
   LayoutGrid, 
   Settings, 
-  History, 
   Layers,
   ChevronDown,
   CalendarSearch
@@ -40,16 +39,6 @@ const navItems = [
     title: "Upcoming",
     url: "/upcoming",
     icon: CalendarSearch,
-  },
-  {
-    title: "Frameworks",
-    url: "/frameworks",
-    icon: Layers,
-  },
-  {
-    title: "History",
-    url: "/history",
-    icon: History,
   },
   {
     title: "Settings",

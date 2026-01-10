@@ -6,21 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
@@ -96,10 +81,11 @@ export default function UpcomingGamesPage() {
   const { toast } = useToast();
   const [activeSport, setActiveSport] = useState<Sport>("nfl");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedGame, setSelectedGame] = useState<UpcomingGame | null>(null);
-  const [addToSlateOpen, setAddToSlateOpen] = useState(false);
-  const [selectedSlateId, setSelectedSlateId] = useState<string>("");
   const [researchResults, setResearchResults] = useState<{[key: string]: { content: string; sources: string[] }}>({});
+  const [activeSlateId, setActiveSlateId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return window.localStorage.getItem("activeSlateId");
+  });
 
   const { data: slates = [] } = useQuery<Slate[]>({
     queryKey: ["/api/slates"],
@@ -168,8 +154,6 @@ export default function UpcomingGamesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/slates"] });
-      setAddToSlateOpen(false);
-      setSelectedGame(null);
       toast({ title: "Game added to slate" });
     },
   });
@@ -191,14 +175,24 @@ export default function UpcomingGamesPage() {
     searchMutation.mutate({ sport: activeSport, query });
   };
 
-  const handleAddToSlate = (game: UpcomingGame) => {
-    setSelectedGame(game);
-    setAddToSlateOpen(true);
-  };
+  const handleAddToSlate = async (game: UpcomingGame) => {
+    try {
+      let slateId = activeSlateId;
+      const slateExists = slateId && activeSlates.some((slate) => slate.id === slateId);
 
-  const confirmAddToSlate = () => {
-    if (selectedSlateId && selectedGame) {
-      addGameMutation.mutate({ slateId: selectedSlateId, game: selectedGame });
+      if (!slateId || !slateExists) {
+        const response = await apiRequest("POST", "/api/slates", {
+          name: `${sportLabels[activeSport]} Draft Slate`,
+        });
+        const slate = await response.json();
+        slateId = slate.id;
+        setActiveSlateId(slateId);
+        window.localStorage.setItem("activeSlateId", slateId);
+      }
+
+      addGameMutation.mutate({ slateId, game });
+    } catch (error) {
+      toast({ title: "Could not add game", variant: "destructive" });
     }
   };
 
@@ -422,51 +416,6 @@ export default function UpcomingGamesPage() {
         </div>
       )}
 
-      <Dialog open={addToSlateOpen} onOpenChange={setAddToSlateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Game to Slate</DialogTitle>
-            <DialogDescription>
-              {selectedGame && `Add ${selectedGame.awayTeam} @ ${selectedGame.homeTeam} to a slate`}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <Select value={selectedSlateId} onValueChange={setSelectedSlateId}>
-              <SelectTrigger data-testid="select-slate">
-                <SelectValue placeholder="Select a slate" />
-              </SelectTrigger>
-              <SelectContent>
-                {activeSlates.map((slate) => (
-                  <SelectItem key={slate.id} value={slate.id}>
-                    {slate.name} ({slate.gameCount || 0} games)
-                  </SelectItem>
-                ))}
-                {activeSlates.length === 0 && (
-                  <SelectItem value="none" disabled>
-                    No active slates
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddToSlateOpen(false)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={confirmAddToSlate}
-              disabled={!selectedSlateId || addGameMutation.isPending}
-            >
-              {addGameMutation.isPending ? (
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Plus className="h-4 w-4 mr-2" />
-              )}
-              Add Game
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

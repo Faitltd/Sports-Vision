@@ -8,23 +8,15 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import NotFound from "@/pages/not-found";
-import SlatesPage from "@/pages/slates";
-import SlateDetailPage from "@/pages/slate-detail";
-import GameWorkspacePage from "@/pages/game-workspace";
-import FrameworksPage from "@/pages/frameworks";
-import HistoryPage from "@/pages/history";
+import SlateDashboardPage from "@/pages/slate-dashboard";
 import SettingsPage from "@/pages/settings";
 import UpcomingGamesPage from "@/pages/upcoming-games";
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={SlatesPage} />
+      <Route path="/" component={SlateDashboardPage} />
       <Route path="/upcoming" component={UpcomingGamesPage} />
-      <Route path="/slates/:id" component={SlateDetailPage} />
-      <Route path="/slates/:slateId/games/:gameId" component={GameWorkspacePage} />
-      <Route path="/frameworks" component={FrameworksPage} />
-      <Route path="/history" component={HistoryPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>
@@ -39,7 +31,7 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme="light" storageKey="slate-handicapper-theme">
+      <ThemeProvider defaultTheme="dark" storageKey="slate-handicapper-theme">
         <TooltipProvider>
           <SidebarProvider style={sidebarStyle as React.CSSProperties}>
             <div className="flex h-screen w-full">
