@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { ChevronDown, MoreHorizontal, Plus, Sparkles, Upload, Download, Archive, Calendar } from "lucide-react";
+import { ChevronDown, MoreHorizontal, Plus, Sparkles, Upload, Download, Archive, Calendar, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +30,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Table,
   TableBody,
   TableCell,
@@ -42,6 +47,29 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Game, Slate, WhyFactor, Evidence } from "@shared/schema";
+
+type UpcomingGame = {
+  id: string;
+  awayTeam: string;
+  homeTeam: string;
+  gameTime: string;
+  spread?: string;
+  overUnder?: string;
+  venue?: string;
+  tvNetwork?: string;
+  conference?: string;
+  notes?: string;
+  sport?: string;
+  sources?: string[];
+};
+
+type UpcomingGamesResult = {
+  games: UpcomingGame[];
+  searchQuery: string;
+  sport: string;
+  timestamp: string;
+  sources: string[];
+};
 
 const ACTIVE_SLATE_STORAGE_KEY = "activeSlateId";
 
@@ -577,9 +605,19 @@ export default function SlateDashboardPage() {
   const { activeSlateId, setActiveSlateId } = useActiveSlateId();
   const [expandedSlateId, setExpandedSlateId] = useState<string | null>(activeSlateId);
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
+  const [upcomingOpen, setUpcomingOpen] = useState(true);
 
   const { data: slates = [], isLoading: slatesLoading } = useQuery<Slate[]>({
     queryKey: ["/api/slates"],
+  });
+
+  const { data: upcomingGames, isLoading: upcomingLoading } = useQuery<UpcomingGamesResult>({
+    queryKey: ["/api/upcoming-games", "nfl", "default"],
+    queryFn: async () => {
+      const response = await apiRequest("POST", "/api/upcoming-games/search", { sport: "nfl" });
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
   });
 
   const activeSlates = slates.filter((slate) => slate.status !== "archived");
@@ -715,6 +753,60 @@ export default function SlateDashboardPage() {
             ))}
           </TableBody>
         </Table>
+      </Card>
+
+      <Card className="p-4">
+        <Collapsible open={upcomingOpen} onOpenChange={setUpcomingOpen}>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold">Upcoming NFL Games</h2>
+              <p className="text-sm text-muted-foreground">Auto-fetched from the upcoming games feed.</p>
+            </div>
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" size="sm">
+                <ChevronDown className={`h-4 w-4 transition-transform ${upcomingOpen ? "rotate-180" : ""}`} />
+              </Button>
+            </CollapsibleTrigger>
+          </div>
+          <CollapsibleContent>
+            {upcomingLoading ? (
+              <Skeleton className="h-24 w-full" />
+            ) : (
+              <div className="space-y-2">
+                {(upcomingGames?.games || []).map((game) => (
+                  <div key={game.id} className="flex items-start justify-between gap-4 border rounded-md p-3">
+                    <div>
+                      <div className="font-medium">
+                        {game.awayTeam} @ {game.homeTeam}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {game.gameTime ? new Date(game.gameTime).toLocaleString() : "Time TBD"}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mt-1">
+                        {game.spread && <span>Spread: {game.spread}</span>}
+                        {game.overUnder && <span>O/U: {game.overUnder}</span>}
+                        {game.tvNetwork && <span>{game.tvNetwork}</span>}
+                      </div>
+                    </div>
+                    {game.sources?.[0] && (
+                      <a
+                        href={game.sources[0]}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary text-xs flex items-center gap-1"
+                      >
+                        Source <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                  </div>
+                ))}
+                {(upcomingGames?.games || []).length === 0 && (
+                  <p className="text-sm text-muted-foreground">No upcoming NFL games found.</p>
+                )}
+              </div>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
       </Card>
 
       {expandedSlateId && (
