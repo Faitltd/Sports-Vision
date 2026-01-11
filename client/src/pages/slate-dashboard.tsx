@@ -847,12 +847,12 @@ export default function SlateDashboardPage() {
                       </div>
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mt-2">
                         {game.spread && (
-                          <span className="text-lg font-mono text-foreground px-2 py-1 border-2 border-primary bg-primary/15">
+                          <span className="text-2xl md:text-3xl font-mono text-foreground px-3 py-1.5 border-2 border-primary bg-primary/20 tracking-wide">
                             Spread: {game.spread}
                           </span>
                         )}
                         {game.overUnder && (
-                          <span className="text-lg font-mono text-foreground px-2 py-1 border-2 border-primary bg-primary/15">
+                          <span className="text-2xl md:text-3xl font-mono text-foreground px-3 py-1.5 border-2 border-primary bg-primary/20 tracking-wide">
                             O/U: {game.overUnder}
                           </span>
                         )}
