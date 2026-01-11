@@ -47,6 +47,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Game, Slate, WhyFactor, Evidence } from "@shared/schema";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type UpcomingGame = {
   id: string;
@@ -622,6 +629,20 @@ export default function SlateDashboardPage() {
 
   const activeSlates = slates.filter((slate) => slate.status !== "archived");
 
+  useEffect(() => {
+    if (activeSlates.length === 0) {
+      setExpandedSlateId(null);
+      setActiveSlateId(null);
+      return;
+    }
+
+    const stillValid = activeSlateId && activeSlates.some((slate) => slate.id === activeSlateId);
+    if (!stillValid) {
+      setExpandedSlateId(activeSlates[0].id);
+      setActiveSlateId(activeSlates[0].id);
+    }
+  }, [activeSlates, activeSlateId, setActiveSlateId]);
+
   const { data: games = [], isLoading: gamesLoading } = useQuery<Game[]>({
     queryKey: ["/api/slates", expandedSlateId, "games"],
     enabled: Boolean(expandedSlateId),
@@ -676,6 +697,15 @@ export default function SlateDashboardPage() {
     setActiveSlateId(nextId);
   };
 
+  const formatGameTime = (value?: string | null) => {
+    if (!value) return "Time TBD";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return value;
+    }
+    return parsed.toLocaleString();
+  };
+
   return (
     <div className="p-4 sm:p-6 space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -688,6 +718,39 @@ export default function SlateDashboardPage() {
           <AddGamesDialog slateId={expandedSlateId} />
         </div>
       </div>
+
+      {activeSlates.length > 0 ? (
+        <Card className="p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="text-sm text-muted-foreground">Active slate</div>
+            <Select
+              value={expandedSlateId || ""}
+              onValueChange={(value) => handleRowToggle(value)}
+            >
+              <SelectTrigger className="sm:w-[320px]">
+                <SelectValue placeholder="Select a slate" />
+              </SelectTrigger>
+              <SelectContent>
+                {activeSlates.map((slate) => (
+                  <SelectItem key={slate.id} value={slate.id}>
+                    {slate.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </Card>
+      ) : (
+        <Card className="p-6 text-center">
+          <h2 className="text-lg font-semibold">Get Started</h2>
+          <p className="text-sm text-muted-foreground mt-2">
+            Create a framework, add a slate, and upload games to start analyzing picks.
+          </p>
+          <div className="flex justify-center gap-2 mt-4">
+            <CreateSlateDialog />
+          </div>
+        </Card>
+      )}
 
       <Card className="overflow-hidden">
         <Table>
@@ -779,12 +842,12 @@ export default function SlateDashboardPage() {
                       <div className="font-medium">
                         {game.awayTeam} @ {game.homeTeam}
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        {game.gameTime ? new Date(game.gameTime).toLocaleString() : "Time TBD"}
+                      <div className="text-[10px] text-muted-foreground">
+                        {formatGameTime(game.gameTime)}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mt-1">
-                        {game.spread && <span>Spread: {game.spread}</span>}
-                        {game.overUnder && <span>O/U: {game.overUnder}</span>}
+                        {game.spread && <span className="text-sm font-mono">Spread: {game.spread}</span>}
+                        {game.overUnder && <span className="text-sm font-mono">O/U: {game.overUnder}</span>}
                         {game.tvNetwork && <span>{game.tvNetwork}</span>}
                       </div>
                     </div>
