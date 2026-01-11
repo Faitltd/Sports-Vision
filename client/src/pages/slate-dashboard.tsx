@@ -845,9 +845,17 @@ export default function SlateDashboardPage() {
                       <div className="text-[10px] text-muted-foreground">
                         {formatGameTime(game.gameTime)}
                       </div>
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mt-1">
-                        {game.spread && <span className="text-sm font-mono">Spread: {game.spread}</span>}
-                        {game.overUnder && <span className="text-sm font-mono">O/U: {game.overUnder}</span>}
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mt-2">
+                        {game.spread && (
+                          <span className="text-lg font-mono text-foreground px-2 py-1 border-2 border-primary bg-primary/15">
+                            Spread: {game.spread}
+                          </span>
+                        )}
+                        {game.overUnder && (
+                          <span className="text-lg font-mono text-foreground px-2 py-1 border-2 border-primary bg-primary/15">
+                            O/U: {game.overUnder}
+                          </span>
+                        )}
                         {game.tvNetwork && <span>{game.tvNetwork}</span>}
                       </div>
                     </div>
