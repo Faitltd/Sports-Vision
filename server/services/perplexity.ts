@@ -368,6 +368,10 @@ export async function researchMatchup(
   const systemPrompt = `You are a ${config.name} betting analyst.
 Provide a concise research summary for the matchup that would help with betting decisions.
 
+Output format (strict):
+- Exactly 5 bullet points (prefix each with "- ") capturing the most important insights
+- Then a short 2-3 sentence explanation paragraph
+
 Focus on:
 1. Recent team performance (last 3-5 games)
 2. Key player injuries or absences
@@ -376,11 +380,11 @@ Focus on:
 5. ${sport === "nfl" || sport === "ncaaf" ? "Weather impact if relevant" : "Rest days and travel"}
 6. Motivation factors
 
-Keep the summary to 3-5 paragraphs, focused on actionable betting insights.`;
+Keep it tight and actionable.`;
 
   const userPrompt = `Research the ${config.name} matchup: ${awayTeam} at ${homeTeam}${gameTime ? ` (${gameTime})` : ""}.
 
-Provide a betting-focused analysis with key factors that could affect the spread and total.`;
+Provide a betting-focused analysis with key factors that could affect the spread and total. Use the required output format.`;
 
   try {
     const { content, citations } = await queryPerplexity([
